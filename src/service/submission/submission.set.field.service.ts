@@ -6,7 +6,10 @@ import { serializeError } from 'serialize-error'
 import { Repository } from 'typeorm'
 import { SubmissionSetFieldInput } from '../../dto/submission/submission.set.field.input'
 import { SubmissionEntity } from '../../entity/submission.entity'
-import { SubmissionFieldContent, SubmissionFieldEntity } from '../../entity/submission.field.entity'
+import {
+  SubmissionFieldContent,
+  SubmissionFieldEntity,
+} from '../../entity/submission.field.entity'
 import { IdService } from '../id.service'
 import { SubmissionHookService } from './submission.hook.service'
 import { SubmissionNotificationService } from './submission.notification.service'
@@ -26,10 +29,15 @@ export class SubmissionSetFieldService {
     logger.setContext(this.constructor.name)
   }
 
-  async saveField(submission: SubmissionEntity, input: SubmissionSetFieldInput): Promise<void> {
+  async saveField(
+    submission: SubmissionEntity,
+    input: SubmissionSetFieldInput,
+  ): Promise<void> {
     const formFieldId = this.idService.decode(input.field)
 
-    let field = submission.fields.find(field => field.field.id === formFieldId)
+    let field = submission.fields.find(
+      (field) => field.field.id === formFieldId,
+    )
 
     submission.timeElapsed = dayjs().diff(dayjs(submission.created), 'second')
 
@@ -42,12 +50,15 @@ export class SubmissionSetFieldService {
       field = new SubmissionFieldEntity()
 
       field.submission = submission
-      field.field = submission.form.fields.find(field => field.id === formFieldId)
+      field.field = submission.form.fields.find(
+        (field) => field.id === formFieldId,
+      )
       field.type = field.field.type
       field.content = this.parseData(field, input.data)
 
       submission.fields.push(field)
-      submission.percentageComplete = (submission.fields.length) / submission.form.fields.length
+      submission.percentageComplete =
+        submission.fields.length / submission.form.fields.length
 
       // figure out why this cannot be after field save...
       await this.submissionRepository.save(submission)
@@ -61,32 +72,41 @@ export class SubmissionSetFieldService {
 
   async finishSubmission(submission: SubmissionEntity): Promise<void> {
     submission.percentageComplete = 1
-    await this.submissionRepository.update({
-      id: submission.id,
-    }, {
-      percentageComplete: 1,
+    await this.submissionRepository.update(
+      {
+        id: submission.id,
+      },
+      {
+        percentageComplete: 1,
+      },
+    )
+
+    this.webHook.process(submission).catch((e) => {
+      this.logger.error(
+        {
+          submission: submission.id,
+          form: submission.formId,
+          error: serializeError(e),
+        },
+        'failed to send webhooks',
+      )
     })
 
-    this.webHook.process(submission).catch(e => {
-      this.logger.error({
-        submission: submission.id,
-        form: submission.formId,
-        error: serializeError(e),
-      }, 'failed to send webhooks')
-    })
-
-    this.notifications.process(submission).catch(e => {
-      this.logger.error({
-        submission: submission.id,
-        form: submission.formId,
-        error: serializeError(e),
-      }, 'failed to send notifications')
+    this.notifications.process(submission).catch((e) => {
+      this.logger.error(
+        {
+          submission: submission.id,
+          form: submission.formId,
+          error: serializeError(e),
+        },
+        'failed to send notifications',
+      )
     })
   }
 
   private parseData(
     field: SubmissionFieldEntity,
-    data: string
+    data: string,
   ): SubmissionFieldContent {
     let raw: SubmissionFieldContent
 
@@ -116,24 +136,20 @@ export class SubmissionSetFieldService {
           return row
         }
 
-        this.logger.warn({
-          ...context,
-          path: `${index}`,
-        }, 'invalid data in array')
+        this.logger.warn(
+          {
+            ...context,
+            path: `${index}`,
+          },
+          'invalid data in array',
+        )
         valid = false
 
         return null
       })
     }
 
-    if (
-      [
-        'number',
-        'string',
-        'boolean',
-        'undefined',
-      ].includes(typeof raw)
-    ) {
+    if (['number', 'string', 'boolean', 'undefined'].includes(typeof raw)) {
       return raw
     }
 
@@ -167,10 +183,13 @@ export class SubmissionSetFieldService {
             return row
           }
 
-          this.logger.warn({
-            ...context,
-            path: `${key}/${index}`,
-          }, 'invalid data in array')
+          this.logger.warn(
+            {
+              ...context,
+              path: `${key}/${index}`,
+            },
+            'invalid data in array',
+          )
           valid = false
 
           return null
@@ -194,38 +213,45 @@ export class SubmissionSetFieldService {
           }
 
           if (Array.isArray(subValue)) {
-            result[String(key)][String(subKey)] = subValue.map((row: unknown, index) => {
-              switch (typeof row) {
-                case 'number':
-                case 'string':
-                case 'boolean':
-                case 'undefined':
+            result[String(key)][String(subKey)] = subValue.map(
+              (row: unknown, index) => {
+                switch (typeof row) {
+                  case 'number':
+                  case 'string':
+                  case 'boolean':
+                  case 'undefined':
+                    return row
+                }
+
+                if (row === null) {
                   return row
-              }
+                }
 
-              if (row === null) {
-                return row
-              }
+                this.logger.warn(
+                  {
+                    ...context,
+                    path: `${key}/${subKey}/${index}`,
+                  },
+                  'invalid data in array',
+                )
+                valid = false
 
-              this.logger.warn({
-                ...context,
-                path: `${key}/${subKey}/${index}`,
-              }, 'invalid data in array')
-              valid = false
-
-              return null
-            })
+                return null
+              },
+            )
 
             return
           }
         }
       }
 
-      this.logger.warn({
-        ...context,
-        path: String(key),
-
-      }, 'invalid data in entry')
+      this.logger.warn(
+        {
+          ...context,
+          path: String(key),
+        },
+        'invalid data in entry',
+      )
 
       valid = false
     })

@@ -41,3 +41,4 @@ lerna-debug.log*
 /data.sqlite
 /maria_data
 /pg_data
+dev-env.sh

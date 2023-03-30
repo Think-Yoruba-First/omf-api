@@ -7,7 +7,7 @@ export class FormNotificationEntity {
   @PrimaryGeneratedColumn()
   public id: number
 
-  @ManyToOne(() => FormEntity, form => form.notifications)
+  @ManyToOne(() => FormEntity, (form) => form.notifications)
   public form: FormEntity
 
   @Column({ nullable: true })
@@ -18,6 +18,12 @@ export class FormNotificationEntity {
 
   @Column()
   public enabled: boolean
+
+  @Column({ nullable: true })
+  public fromFieldId?: number
+
+  @Column({ nullable: true })
+  public toFieldId?: number
 
   @ManyToOne(() => FormFieldEntity)
   public fromField?: FormFieldEntity
